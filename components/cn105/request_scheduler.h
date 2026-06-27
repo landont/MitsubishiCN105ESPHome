@@ -93,6 +93,12 @@ namespace esphome {
         bool is_empty() const;
 
         /**
+         * @brief Build a human-readable list of the currently enabled request codes
+         * @return Comma-separated hex codes (e.g. "0x02,0x03,0x06"), or "none" if all disabled
+         */
+        std::string enabled_codes_summary() const;
+
+        /**
          * @brief Send the next request after the one with the specified code
          * @param previous_code The code of the previous request (0x00 to start)
          * @param context CN105Climate context to check canSend (can be nullptr, uses context_callback_ if provided)

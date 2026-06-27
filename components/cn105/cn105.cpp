@@ -343,6 +343,15 @@ void CN105Climate::arm_active_polling() {
     if (this->bus_mode_ != cn105_protocol::BusMode::ACTIVE) {
         this->bus_mode_ = cn105_protocol::BusMode::ACTIVE;
         ESP_LOGW(LOG_CONN_TAG, "Bus mode ARMED → ACTIVE (will poll CN105)");
+        // Boot in PASSIVE skipped the CONNECT handshake, so the FSM is parked in
+        // CONNECTING with no retry pending and isHeatpumpConnected() never becomes
+        // true — which means the poll loop never runs. Kick off the handshake now
+        // that transmitting is allowed; on the 0x7A reply we reach CONNECTED and
+        // buildAndSendRequestsInfoPackets() starts ticking.
+        if (!this->isHeatpumpConnected()) {
+            ESP_LOGI(LOG_CONN_TAG, "ACTIVE armed while disconnected → initiating CN105 handshake");
+            this->sendFirstConnectionPacket();
+        }
     } else {
         ESP_LOGD(LOG_CONN_TAG, "Bus mode re-armed (already ACTIVE)");
     }

@@ -14,6 +14,13 @@ void CN105Climate::sendFirstConnectionPacket() {
         ESP_LOGD(LOG_CONN_TAG, "PASSIVE bus mode: skipping CONNECT handshake (RX-only)");
         return;
     }
+    if (!this->isUARTReady_()) {
+        // UART not initialised yet — happens when ACTIVE is armed during the boot
+        // grace window, before WAIT_GRACE has set up the port. Initialise it now so
+        // the CONNECT below can actually be transmitted instead of silently bailing.
+        ESP_LOGW(LOG_CONN_TAG, "UART not ready yet — initialising before CONNECT handshake");
+        this->setupUART();
+    }
     if (this->isUARTReady_()) {
         this->lastReconnectTimeMs = CUSTOM_MILLIS;          // marker to prevent to many reconnections
         this->setHeatpumpConnected(false);
@@ -52,10 +59,7 @@ void CN105Climate::sendFirstConnectionPacket() {
             }});
 
     } else {
-        ESP_LOGE(LOG_CONN_TAG, "UART doesn't seem to be connected...");
-        this->setupUART();
-        // this delay to prevent a logging flood should never happen
-        CUSTOM_DELAY(750);
+        ESP_LOGE(LOG_CONN_TAG, "UART setup failed — cannot send CONNECT handshake");
     }
 }
 
@@ -473,8 +477,9 @@ void CN105Climate::buildAndSendRequestsInfoPackets() {
         return;  // RX-only: no INFO polling (defense in depth; we also never connect)
     }
     if (this->isHeatpumpConnected()) {
-        ESP_LOGV(LOG_UPD_INT_TAG, "triggering infopacket because of update interval tick");
-        ESP_LOGV("CONTROL_WANTED_SETTINGS", "hasChanged is %s", wantedSettings.hasChanged ? "true" : "false");
+        ESP_LOGD(LOG_UPD_INT_TAG, "Polling heatpump: starting update cycle #%lu (update interval tick), requesting INFO codes: %s",
+            this->nbCycles_ + 1, this->scheduler_.enabled_codes_summary().c_str());
+        ESP_LOGD("CONTROL_WANTED_SETTINGS", "hasChanged is %s", wantedSettings.hasChanged ? "true" : "false");
         this->loopCycle.cycleStarted();
         this->nbCycles_++;
         // Envoie la première requête activable (la liste est enregistrée une fois au constructeur)

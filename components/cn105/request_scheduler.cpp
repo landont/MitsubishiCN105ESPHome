@@ -56,6 +56,18 @@ bool RequestScheduler::is_empty() const {
     return requests_.empty();
 }
 
+std::string RequestScheduler::enabled_codes_summary() const {
+    std::string summary;
+    char buf[8];
+    for (const auto& req : requests_) {
+        if (req.disabled) continue;
+        if (!summary.empty()) summary += ",";
+        snprintf(buf, sizeof(buf), "0x%02X", req.code);
+        summary += buf;
+    }
+    return summary.empty() ? "none" : summary;
+}
+
 void RequestScheduler::send_request(uint8_t code, CN105Climate* context) {
     // Get context if not provided but callback is available
     if (!context && context_callback_) {
