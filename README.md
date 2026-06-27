@@ -16,6 +16,7 @@ The benefits include fully local control over your heat pump system, without rel
 
 ### New Features
 
+- A [read-only **monitor mode**](#read-only-monitor-mode-monitor_only) (`monitor_only`) for setups where another controller (e.g. Airzone) owns the HVAC: publishes health telemetry while structurally guaranteeing it never writes to the unit, with a runtime passive/active polling toggle.
 - Support Fahrenheit users better by mapping unit conversions to Mitsubishi's "creative" math, ensuring that HomeAssistant and external thermostats stay in sync. Thanks [@ams2990](https://github.com/ams2990) and [@dsstewa](https://github.com/dsstewa)!
 - Additional components for supported units: vane orientation (fully supporting the Swicago map), compressor frequency for energy monitoring, and i-see sensor.
 - Additional diagnostic sensors for understanding the behavior of the indoor units while in AUTO mode.
@@ -1185,6 +1186,88 @@ climate:
 
 > [!WARNING]
 > `split_vertical` is experimental and has not yet been validated by community testers. If your unit has dual vertical vane motors, please test and report your findings in [Issue #505](https://github.com/echavet/MitsubishiCN105ESPHome/issues/505).
+
+## Read-Only Monitor Mode (`monitor_only`)
+
+`monitor_only` builds a **read-only** firmware: it connects to the CN105 bus and publishes
+health/status telemetry to Home Assistant, but **never** changes the unit's state — no
+setpoint, mode, fan, vane, power, or remote-temperature writes. This is intended for setups
+where another controller already owns the HVAC (for example a Mitsubishi indoor unit driven
+by an Airzone gateway via an `AZX6ACCSPLMEL` CN105 splitter), and you only want visibility.
+
+A ready-to-use example lives at [`examples/pead-monitor/pead-monitor.yaml`](examples/pead-monitor/pead-monitor.yaml).
+The full design rationale is in [`MONITOR_REQUIREMENTS.md`](MONITOR_REQUIREMENTS.md),
+[`MONITOR_DEVELOPMENT_PLAN.md`](MONITOR_DEVELOPMENT_PLAN.md), and
+[`MONITOR_IMPLEMENTATION_PLAN.md`](MONITOR_IMPLEMENTATION_PLAN.md).
+
+> [!CAUTION]
+> Connecting a second active device to a CN105 bus that already has a master is only safe if
+> the bus/splitter tolerates it. Validate on your own hardware before relying on active
+> polling — start in passive mode (the default) and watch for disruption.
+
+### How the "no write" guarantee is enforced
+
+The guarantee is structural, in three independent layers:
+
+1. **Config rejection** — setting any writable entity (vane selects, the HVAC switches,
+   `hardware_settings`, `functions_set_*`, `remote_temperature_*`) together with
+   `monitor_only: true` is a **hard compile-time error**.
+2. **Suppressed write paths** — the climate `control()` handler and every SET emitter
+   return early in monitor mode; the remote-temperature watchdog/keep-alive never start.
+3. **Outbound allow-list** — a single choke point drops any outbound packet that is not
+   `CONNECT` (`0x5a`) or `INFO`/GET (`0x42`). A SET (`0x41`) can never be transmitted.
+
+### Passive vs. active polling (runtime)
+
+`monitor_only` itself is compile-time and immutable. Whether the monitor *actively polls*
+is a **runtime** setting that **defaults to passive (RX-only) on every boot**:
+
+- **Passive** — pure listen: transmits nothing at all, just decodes traffic it observes.
+- **Active** — issues its own `CONNECT` + `INFO` polls (still no writes). You **arm** it at
+  runtime (e.g. the "Active polling" template switch in the example). It is **never
+  persisted** — a power cycle always returns to passive — and a **dead-man timer**
+  (`active_polling_deadman`, default `30min`, `0` to disable) auto-reverts to passive unless
+  re-armed. This lets you test active polling over OTA and back it out remotely.
+
+### Configuration
+
+```yaml
+climate:
+  - platform: cn105
+    name: "PEAD Monitor"
+    id: pead_monitor
+    monitor_only: true            # read-only build (default: false)
+    active_polling_deadman: 30min # active mode auto-reverts to passive after this; 0 = never
+    # health telemetry only — no writable entities allowed alongside monitor_only:
+    error_code_sensor:
+      name: Error code
+    refrigerant_leak:             # A2L leak alert — see note below
+      name: Refrigerant leak
+
+# Arm/disarm active polling at runtime (arming only enables 0x42 polling, never a write):
+switch:
+  - platform: template
+    name: "Active polling"
+    optimistic: true
+    restore_mode: ALWAYS_OFF      # ensures the device always boots passive
+    turn_on_action:
+      - lambda: 'id(pead_monitor).arm_active_polling();'
+    turn_off_action:
+      - lambda: 'id(pead_monitor).disarm_active_polling();'
+```
+
+### Error decoder and `refrigerant_leak` alert
+
+The optional `refrigerant_leak` binary_sensor (`device_class: safety`) is driven by an
+error-code decoder for the `0x04` abnormal-state packet, intended to surface the R454B A2L
+refrigerant-leak codes (`FL`/`FH`/`PL`) as a high-severity signal.
+
+> [!IMPORTANT]
+> There is **no public byte→error-code mapping** for CN105 `0x04` — the decoder's lookup
+> table ships **empty on purpose**, so the error sensor currently falls back to raw hex
+> (e.g. `"Error 0x12 sub 0x00"`) and the leak alert stays inactive. Populating it requires a
+> live capture of real error frames from your specific unit; speculative codes are not
+> shipped, because a wrong refrigerant-leak alert is worse than none.
 
 ## Comparison with ESPHome Native `mitsubishi_cn105`
 
