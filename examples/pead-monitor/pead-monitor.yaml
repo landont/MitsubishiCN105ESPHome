@@ -27,9 +27,16 @@ esphome:
   friendly_name: ${friendly_name}
 
 esp32:
+  # ESP32-S3-DevKitC-1 N8R2 — 8 MB flash, 2 MB quad SPI PSRAM
   board: esp32-s3-devkitc-1
+  flash_size: 8MB
   framework:
     type: esp-idf
+
+# N8R2 carries 2 MB quad SPI PSRAM
+psram:
+  mode: quad
+  speed: 80MHz
 
 logger:
   level: DEBUG
