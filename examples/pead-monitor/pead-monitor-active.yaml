@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# PEAD Health Monitor — read-only (monitor_only) build
+# PEAD Health Monitor — read-only (monitor_only) build · ACTIVE-BY-DEFAULT variant
 #
 # A query-only CN105 monitor for a Mitsubishi PEAD indoor unit that shares the
 # bus with an Airzone gateway. It NEVER writes to the unit (enforced in firmware
@@ -14,8 +14,14 @@
 #     otherwise power the ESP externally (safer). Decide and wire this ONCE.
 #   • Confirm WiFi RSSI margin at the install location (only thing not fixable
 #     remotely). Remediate during the visit if marginal.
-# On boot the monitor is PASSIVE (RX-only). Arm active polling remotely via the
-# "Active polling" switch below; it auto-reverts (dead-man) and never persists.
+#
+# ── Bus mode: ACTIVE BY DEFAULT ───────────────────────────────────────────────
+# Unlike pead-monitor.yaml (PASSIVE by default, armed on demand), this variant
+# POLLS BY DEFAULT: on_boot arms ACTIVE (priority -100, after the cn105 component
+# applies its PASSIVE default) and active_polling_deadman: 0s disables auto-revert.
+# It therefore transmits on the shared bus continuously from boot, persistently
+# across reboots — you give up the PASSIVE-by-default safety net. Toggle the
+# "Active polling" switch OFF at runtime to return to PASSIVE (RX-only).
 # ─────────────────────────────────────────────────────────────────────────────
 
 substitutions:
@@ -31,6 +37,14 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  # Poll by default: arm ACTIVE late in boot (priority -100, after the cn105
+  # component's setup has run and applied its PASSIVE default). Turning the switch
+  # ON here both arms polling and reflects the state in HA. Combined with
+  # active_polling_deadman: 0s, the monitor then polls continuously.
+  on_boot:
+    priority: -100
+    then:
+      - switch.turn_on: active_polling
   # Separate HA sub-device for the attic environment sensor, so its entities
   # appear as a distinct "22182_attic" set rather than under "PEAD Monitor".
   devices:
@@ -113,9 +127,10 @@ climate:
     monitor_only: true
     # How often a full poll cycle runs while ACTIVE (re-reads all telemetry).
     update_interval: 5s
-    # Active polling auto-reverts to PASSIVE after this window unless re-armed.
-    # (For an always-on, no-revert build, see pead-monitor-active.yaml.)
-    active_polling_deadman: 30min
+    # 0s disables the dead-man: once ACTIVE, polling stays on and never
+    # auto-reverts to PASSIVE. This build arms ACTIVE at boot (see on_boot above),
+    # so it polls continuously — at the cost of the PASSIVE-by-default safety.
+    active_polling_deadman: 0s
 
     # ── Health / diagnostic telemetry (all read-only) ──
     compressor_frequency_sensor:
@@ -150,10 +165,13 @@ climate:
 
 # ── Runtime bus-mode control (NFR6/NFR7) ──
 # Exposed at YAML level (not a component platform): arming only enables 0x42
-# polling, never a write. restore_mode ALWAYS_OFF => every boot starts PASSIVE;
-# arm on demand from HA. (For active-at-boot, see pead-monitor-active.yaml.)
+# polling, never a write. restore_mode ALWAYS_OFF keeps the switch OFF through
+# component setup so the on_boot (priority -100) turn_on is a clean OFF→ON that
+# (re)runs arm_active_polling() after cn105 has applied its PASSIVE default.
+# Toggle OFF at runtime to return the monitor to PASSIVE (RX-only).
 switch:
   - platform: template
+    id: active_polling
     name: "Active polling"
     icon: "mdi:radar"
     optimistic: true
