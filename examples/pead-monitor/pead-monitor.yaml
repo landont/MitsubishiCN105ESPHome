@@ -1,0 +1,140 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PEAD Health Monitor — read-only (monitor_only) build
+#
+# A query-only CN105 monitor for a Mitsubishi PEAD indoor unit that shares the
+# bus with an Airzone gateway. It NEVER writes to the unit (enforced in firmware
+# at three layers; see MONITOR_REQUIREMENTS.md NFR1/NFR2). See also
+# MONITOR_DEVELOPMENT_PLAN.md for the single-install / OTA-only workflow.
+#
+# ── Install / power note (Q3, NFR9) ──────────────────────────────────────────
+# This installs in a hard-to-reach spot and is visited ONCE; all later iteration
+# is over OTA. Before the trip:
+#   • Bench-test the power chain under WiFi load. If powering the ESP from the
+#     splitter's 12 V ACC leg, confirm the buck holds up during WiFi TX spikes;
+#     otherwise power the ESP externally (safer). Decide and wire this ONCE.
+#   • Confirm WiFi RSSI margin at the install location (only thing not fixable
+#     remotely). Remediate during the visit if marginal.
+# On boot the monitor is PASSIVE (RX-only). Arm active polling remotely via the
+# "Active polling" switch below; it auto-reverts (dead-man) and never persists.
+# ─────────────────────────────────────────────────────────────────────────────
+
+substitutions:
+  name: "pead-monitor"
+  friendly_name: "PEAD Monitor"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  logs:
+    Decoder: INFO
+    CN105: INFO
+    FSM: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # AP fallback / captive portal so a dropped network self-recovers (NFR8).
+  ap:
+    ssid: "${friendly_name} ESP"
+    password: !secret fallback_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret api_key
+
+# OTA is the only post-install channel; safe_mode + rollback recover a bad image
+# without physical access (NFR8). Bus-polling state is independent of WiFi/OTA, so
+# an over-aggressive polling mistake is always remotely reversible.
+ota:
+  - platform: esphome
+    password: !secret ota_pwd
+
+safe_mode:
+
+web_server:
+  port: 80
+  version: 3
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+
+uart:
+  id: HP_UART
+  baud_rate: 2400          # 8E1 is configured by the cn105 component
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+
+climate:
+  - platform: cn105
+    name: ${friendly_name}
+    id: pead_monitor
+    # Read-only build: any CN105 write is refused; configuring a writable entity
+    # (vane select, switch, hardware_settings, remote_temperature_*) is a hard
+    # config error.
+    monitor_only: true
+    # Active polling auto-reverts to PASSIVE after this window unless re-armed.
+    active_polling_deadman: 30min
+
+    # ── Health / diagnostic telemetry (all read-only) ──
+    compressor_frequency_sensor:
+      name: Compressor frequency
+    outside_air_temperature_sensor:
+      name: Outside air temperature
+    input_power_sensor:
+      name: Input power
+    kwh_sensor:
+      name: Energy
+    runtime_hours_sensor:
+      name: Runtime hours
+    stage_sensor:
+      name: Operating stage
+    sub_mode_sensor:
+      name: Sub mode
+    auto_sub_mode_sensor:
+      name: Auto sub mode
+    error_code_sensor:
+      name: Error code
+    # A2L refrigerant-leak alert (FR5). Wired but inactive until FL/FH/PL byte
+    # codes are confirmed by a live capture (dev plan Stage C).
+    refrigerant_leak:
+      name: Refrigerant leak
+    hp_uptime_connection_sensor:
+      name: Link uptime
+
+# ── Runtime bus-mode control (NFR6/NFR7) ──
+# Exposed at YAML level (not a component platform): arming only enables 0x42
+# polling, never a write. restore_mode ALWAYS_OFF => every boot starts PASSIVE.
+switch:
+  - platform: template
+    name: "Active polling"
+    icon: "mdi:radar"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - lambda: 'id(pead_monitor).arm_active_polling();'
+    turn_off_action:
+      - lambda: 'id(pead_monitor).disarm_active_polling();'
+
+text_sensor:
+  - platform: template
+    name: "Bus mode"
+    icon: "mdi:transmission-tower"
+    update_interval: 10s
+    lambda: 'return {id(pead_monitor).bus_mode_str()};'
+
+sensor:
+  - platform: wifi_signal
+    name: WiFi signal
+    update_interval: 120s

@@ -47,6 +47,7 @@ jobs:
           - examples/m5stack-atoms3/atom-m5
           - examples/xiao-esp32s3/heatpump-xiaoESP32S3
           - examples/modular-hvac/hvac-sample
+          - examples/pead-monitor/pead-monitor
     container:
       image: ghcr.io/esphome/esphome:${{ matrix.version }}
     env:
@@ -85,4 +86,5 @@ jobs:
         cp secrets.yaml examples/xiao-esp32s3/
         cp secrets.yaml examples/xiao-esp32s3/common/
         cp secrets.yaml examples/modular-hvac/
+        cp secrets.yaml examples/pead-monitor/
     - run: esphome compile ${{ matrix.variant }}.yaml

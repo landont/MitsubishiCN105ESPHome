@@ -156,13 +156,20 @@ Lets Stage C validate Q2 over OTA without a re-flash.
 
 ---
 
-### PR6 — OTA-resilient example config + power decision  *(NFR8, NFR9, Q3)* — YAML/docs
+### PR6 — OTA-resilient example config + power decision  *(NFR8, NFR9, Q3)* — DONE
 
-- `examples/pead-monitor/pead-monitor.yaml`: `monitor_only:true`, only health
-  sensor/binary_sensor/text_sensor, `pead_monitor_*` prefix, UART 2400/8E1,
-  `safe_mode:`, `ota:` with rollback, WiFi `ap:` fallback / captive portal. Add to CI matrix.
-- Doc the A7 power-chain bench test + the final wiring decision (12 V ACC leg vs external).
-- **Exit:** example compiles in CI; bench OTA-recovery + power test recorded in the dev plan.
+- `examples/pead-monitor/pead-monitor.yaml`: `monitor_only:true`, health
+  sensor/binary_sensor/text_sensor only (no writable platform), `${friendly_name}`
+  → `PEAD Monitor` prefix (FR4), UART 2400 (8E1 set by the component), `safe_mode:`,
+  `ota:` (esphome platform), WiFi `ap:` fallback + `captive_portal:` (NFR8). Includes the
+  PR5 **"Active polling" template switch** (`restore_mode: ALWAYS_OFF` → boots PASSIVE) and a
+  **"Bus mode" template text_sensor**, plus an install/power/RSSI comment block (Q3/NFR9).
+- CI: added `examples/pead-monitor/pead-monitor` to the build matrix + a `cp secrets.yaml`
+  line, so every future change compile-checks a monitor build.
+- **Verified:** compiles to a full ESP32-S3 image locally (`esphome compile`).
+- **Still hardware (not code):** the A7 power-chain bench test and the bench OTA-recovery
+  drill (deliberately flash a bad image, confirm self-recovery) — tracked in the dev plan
+  Stage A exit gate, to be done before the install trip.
 
 ---
 
