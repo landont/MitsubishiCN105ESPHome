@@ -68,21 +68,23 @@ write path is touched.
 
 ---
 
-### PR2 — Remove the write surface (firmware)  *(NFR1, NFR5)*
+### PR2 — Remove the write surface (firmware)  *(NFR1, NFR5)* — DONE
 
-Make SET emission *unreachable*, with PR1 as the backstop if anything slips.
+Chose **runtime early-return guards** over `#ifdef` compile-out: no signature/caller surgery,
+compiles cleanly in both modes, and it layers as a distinct second tier above PR1's
+already-tested byte-level `writePacket()` backstop (defense in depth).
 
-- Wrap in `#ifndef CN105_MONITOR_ONLY` (or early-return on `monitor_only_`):
-  `sendWantedSettings()/sendWantedSettingsDelegate()/createPacket()`,
-  `sendRemoteTemperature()/sendRemoteTemperaturePacket()`, `sendWantedRunStates()`
-  (`hp_writings.cpp`); `control()/controlDelegate()/controlMode/Temperature/Fan/Swing()`
-  (`climateControls.cpp`).
-- Disable remote-temp **watchdog + keepalive** timers in monitor mode (`cn105.cpp`
-  `pingExternalTemperature`, `startRemoteTempKeepAlive`). NFR5.
-- **Leave untouched** (Req §10.4): `sendFirstConnectionPacket()` (`0x5a`),
+- `monitor_only_` early-return added to: `sendWantedSettings()`,
+  `sendWantedSettingsDelegate()`, `sendRemoteTemperaturePacket()`, `sendWantedRunStates()`
+  (`hp_writings.cpp`); `control()` (`climateControls.cpp`) — the single entry point for all
+  HA commands, which also delivers PR3's deferred **read-only climate no-op**.
+- Remote-temp **watchdog + keep-alive** suppressed in monitor mode: `pingExternalTemperature()`,
+  `startRemoteTempKeepAlive()` (`cn105.cpp`). NFR5.
+- **Untouched** (Req §10.4): `sendFirstConnectionPacket()` (`0x5a`),
   `buildAndSendInfoPacket()`/`createInfoPacket()` (`0x42`), FSM, read path, scheduler.
-- **Exit:** grep shows no reachable `0x41` builder in monitor mode; PR1 guard re-tested with
-  a deliberately-injected write still catches it.
+- **Verified:** the monitor-only firmware **compiles to a full ESP32 image** (`esphome
+  compile`, esp-idf); all 211 unit tests still pass. The three layers now stand: control()
+  no-op → emitters suppressed → writePacket() drops anything but `0x5a`/`0x42`.
 
 ---
 

@@ -244,6 +244,9 @@ void CN105Climate::set_tx_rx_pins(int tx_pin, int rx_pin) {
 }
 
 void CN105Climate::pingExternalTemperature() {
+    if (this->monitor_only_) {  // no remote-temp watchdog in a read-only build (NFR5)
+        return;
+    }
     this->set_timeout(SHEDULER_REMOTE_TEMP_TIMEOUT, this->remote_temp_timeout_, [this]() {
         ESP_LOGW(LOG_REMOTE_TEMP, "Remote temperature timeout occured, fall back to internal temperature!");
         this->stopRemoteTempKeepAlive();
@@ -283,6 +286,10 @@ void CN105Climate::set_remote_temperature_margin(float margin) {
 }
 
 void CN105Climate::startRemoteTempKeepAlive() {
+    if (this->monitor_only_) {  // no remote-temp keep-alive in a read-only build (NFR5)
+        ESP_LOGD(LOG_REMOTE_TEMP, "monitor_only: keep-alive not started (read-only build)");
+        return;
+    }
     // Don't start if keep-alive is disabled or already active
     if (this->remote_temp_keepalive_interval_ms_ == 0) {
         ESP_LOGD(LOG_REMOTE_TEMP, "Keep-alive disabled, not starting.");

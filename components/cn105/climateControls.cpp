@@ -269,6 +269,13 @@ void CN105Climate::finalizeControlIfUpdated(bool updated) {
 
 void CN105Climate::control(const esphome::climate::ClimateCall& call) {
 
+    // monitor_only: read-only climate entity — ignore all HA commands so no
+    // SET machinery runs (NFR1/NFR3). PR1's writePacket() guard is the backstop.
+    if (this->monitor_only_) {
+        ESP_LOGW(TAG, "monitor_only: ignoring climate control() call (read-only build)");
+        return;
+    }
+
 #ifdef USE_ESP32
     std::lock_guard<std::mutex> guard(wantedSettingsMutex);
     this->controlDelegate(call);

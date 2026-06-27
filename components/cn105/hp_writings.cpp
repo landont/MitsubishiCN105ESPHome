@@ -380,6 +380,10 @@ void CN105Climate::publishWantedRunStatesStateToHA() {
 
 
 void CN105Climate::sendWantedSettingsDelegate() {
+    if (this->monitor_only_) {  // read-only build: never emit a SET (NFR1)
+        ESP_LOGD(TAG, "monitor_only: suppressing sendWantedSettings");
+        return;
+    }
     this->wantedSettings.hasBeenSent = true;
     this->lastSend = CUSTOM_MILLIS;
     ESP_LOGI(TAG, "sending wantedSettings..");
@@ -407,6 +411,10 @@ void CN105Climate::sendWantedSettingsDelegate() {
  *
 */
 void CN105Climate::sendWantedSettings() {
+    if (this->monitor_only_) {  // read-only build: never emit a SET (NFR1)
+        ESP_LOGD(TAG, "monitor_only: suppressing sendWantedSettings");
+        return;
+    }
     if (this->isHeatpumpConnectionActive() && this->isUARTReady_()) {
         if (CUSTOM_MILLIS - this->lastSend > 300) {        // we don't want to send too many packets
 
@@ -493,6 +501,10 @@ void CN105Climate::createInfoPacket(uint8_t* packet, uint8_t code) {
 
 void CN105Climate::sendRemoteTemperaturePacket() {
     // Build and send the remote temperature packet (0x07) without affecting watchdog/keep-alive timers
+    if (this->monitor_only_) {  // remote-temp injection is a write — suppress (NFR1/NFR5)
+        ESP_LOGD(TAG, "monitor_only: suppressing remote temperature packet");
+        return;
+    }
 
     // Debounce logic: avoid flooding the bus with identical temperature values
     // Only skip if: same temperature AND sent recently (within half of keep-alive interval, min 5s)
@@ -565,6 +577,10 @@ void CN105Climate::sendRemoteTemperature() {
 }
 
 void CN105Climate::sendWantedRunStates() {
+    if (this->monitor_only_) {  // run-state writes are SETs — suppress (NFR1)
+        ESP_LOGD(TAG, "monitor_only: suppressing sendWantedRunStates");
+        return;
+    }
     uint8_t packet[PACKET_LEN] = {};
 
     prepareSetPacket(packet, PACKET_LEN);
