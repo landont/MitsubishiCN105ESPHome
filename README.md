@@ -1217,6 +1217,34 @@ The guarantee is structural, in three independent layers:
 3. **Outbound allow-list** — a single choke point drops any outbound packet that is not
    `CONNECT` (`0x5a`) or `INFO`/GET (`0x42`). A SET (`0x41`) can never be transmitted.
 
+### What is disabled in `monitor_only` mode
+
+**Rejected (hard compile-time error if configured alongside `monitor_only: true`)** — these
+control entities cannot exist in a read-only build:
+
+| Config option | Platform | What it would control |
+|---|---|---|
+| `vertical_vane_select`, `horizontal_vane_select`, `airflow_control_select` | `select` | vane / airflow direction |
+| `air_purifier_switch`, `night_mode_switch`, `circulator_switch` | `switch` | run-state toggles |
+| `functions_set_button` | `button` | writes a function value |
+| `functions_set_code`, `functions_set_value` | `number` | function-write operands |
+| `hardware_settings` | `select` | writes unit hardware/function config |
+| `remote_temperature_source`, `remote_temperature_control_sensor` | sensor inputs | inject remote room temp into the unit |
+
+**Made read-only or inert (allowed, but cannot cause a write):**
+
+- The **climate entity** still appears, but its command handler is a no-op — setpoint, mode,
+  fan, and swing commands from Home Assistant are ignored (logged and dropped).
+- The remote-temperature **watchdog and keep-alive timers** never start, and these
+  control-shaping options have no effect: `dual_setpoint`, `restore_setpoints`,
+  `temperature_margin`, `debounce_delay`, `remote_temperature_timeout`,
+  `remote_temperature_keepalive_interval`, `fahrenheit_compatibility`.
+
+**Still available (read-only):** every diagnostic/health `sensor`, `binary_sensor`, and
+`text_sensor` (room/outside temp, compressor frequency, power/energy, runtime, stage/sub-mode,
+error code, refrigerant-leak, link uptime…), plus `functions_get_button` (GET only — it issues
+a permitted `0x42` request, not a write).
+
 ### Passive vs. active polling (runtime)
 
 `monitor_only` itself is compile-time and immutable. Whether the monitor *actively polls*
