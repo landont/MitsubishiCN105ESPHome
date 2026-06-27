@@ -2,6 +2,7 @@
 #include "Globals.h"
 #include "cn105_protocol.h"
 #include "frame_parser.h"
+#include "monitor_guard.h"
 #include "esphome/components/uart/uart.h"
 #include "heatpumpFunctions.h"
 #include "van_orientation_select.h"
@@ -286,6 +287,14 @@ namespace esphome {
         // Opt-in (supports.restore_setpoints): persist HEAT_COOL band across reboots
         void set_restore_setpoints(bool v) { this->restore_setpoints_ = v; }
 
+        // monitor_only: read-only build. The firmware must never transmit a write
+        // (CN105 0x41 SET / 0x08 run-states). Enforced at the writePacket() choke
+        // point via monitor_allows_packet() (allow-list {0x5a, 0x42}). See NFR1/NFR2.
+        void set_monitor_only(bool v) { this->monitor_only_ = v; }
+        bool is_monitor_only() const { return this->monitor_only_; }
+        // Diagnostic: number of outbound packets dropped by the monitor_only guard.
+        uint32_t get_blocked_write_count() const { return this->blocked_write_count_; }
+
         // Configure the climate object with traits that we support.
 
 
@@ -545,6 +554,11 @@ namespace esphome {
             float target_high;
         } __attribute__((packed));
         bool restore_setpoints_ = false;
+
+        // monitor_only mode (read-only build) + guard diagnostic counter (NFR1/NFR2)
+        bool monitor_only_ = false;
+        uint32_t blocked_write_count_ = 0;
+
         esphome::ESPPreferenceObject setpoint_pref_;
         bool setpoint_pref_ready_ = false;
         void restore_setpoint_state_();

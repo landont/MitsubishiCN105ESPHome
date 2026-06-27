@@ -140,6 +140,7 @@ CONF_REMOTE_TEMP_KEEPALIVE_INTERVAL = "remote_temperature_keepalive_interval"
 CONF_DEBOUNCE_DELAY = "debounce_delay"
 CONF_CONNECTION_BOOTSTRAP_DELAY = "connection_bootstrap_delay"
 CONF_INSTALLER_MODE = "installer_mode"
+CONF_MONITOR_ONLY = "monitor_only"
 
 # DÃÂÃÂ©finitions des classes C++ (identiques ÃÂÃÂ  votre version)
 VaneOrientationSelect = cg.global_ns.class_(
@@ -422,6 +423,9 @@ CONFIG_SCHEMA = (
                 cv.update_interval
             ),
             cv.Optional(CONF_INSTALLER_MODE, default=False): cv.boolean,
+            # Read-only build: the firmware must never transmit a CN105 write.
+            # Enforced at writePacket() via the {0x5a, 0x42} allow-list (NFR1/NFR2).
+            cv.Optional(CONF_MONITOR_ONLY, default=False): cv.boolean,
             cv.Optional(
                 CONF_HP_UP_TIME_CONNECTION_SENSOR
             ): HP_UP_TIME_CONNECTION_SENSOR_SCHEMA,
@@ -473,6 +477,10 @@ def to_code(config):
 
     cg.add(var.set_installer_mode(config[CONF_INSTALLER_MODE]))
     cg.add(var.set_power_unit_is_btu(config[CONF_POWER_UNIT_IS_BTU]))
+
+    cg.add(var.set_monitor_only(config[CONF_MONITOR_ONLY]))
+    if config[CONF_MONITOR_ONLY]:
+        cg.add_define("CN105_MONITOR_ONLY")
 
     cg.add(uart_var.set_data_bits(8))
     cg.add(uart_var.set_parity(UARTParityOptions.UART_CONFIG_PARITY_EVEN))

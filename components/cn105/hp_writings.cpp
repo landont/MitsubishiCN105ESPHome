@@ -90,6 +90,17 @@ void CN105Climate::prepareSetPacket(uint8_t* packet, int length) {
 
 void CN105Climate::writePacket(uint8_t* packet, int length, bool checkIsActive) {
 
+    // monitor_only fail-safe (NFR2): single, caller-agnostic choke point. Drop any
+    // outbound packet that is not CONNECT (0x5a) or INFO (0x42) — never transmit a
+    // write. Holds even if a future change reintroduces a write path upstream.
+    if (!cn105_protocol::monitor_allows_packet(this->monitor_only_, packet, length)) {
+        this->blocked_write_count_++;
+        const uint8_t type = (length > 1) ? packet[1] : 0x00;
+        ESP_LOGE(TAG, "monitor_only: BLOCKED outbound packet type 0x%02X (blocked total=%u)",
+            type, this->blocked_write_count_);
+        return;
+    }
+
     if ((this->isUARTReady_()) &&
         (this->isHeatpumpConnectionActive() || (!checkIsActive))) {
 
