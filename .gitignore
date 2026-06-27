@@ -1,5 +1,6 @@
 secrets.yaml
 .esphome
+*.ota.bin
 __pycache__
 clim-chambre-awox.yaml
 test.yaml
