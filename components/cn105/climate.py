@@ -377,7 +377,41 @@ HARDWARE_SETTING_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = (
+# Entity keys that map to a CN105 write (SET / remote-temp injection / hardware
+# config). A monitor_only build must not expose any of them (NFR3, Requirements
+# §10.1). functions_get_button is intentionally NOT listed: it issues only a GET
+# (0x42), which is permitted in monitor mode.
+WRITABLE_KEYS_IN_MONITOR_MODE = [
+    CONF_HORIZONTAL_SWING_SELECT,
+    CONF_VERTICAL_SWING_SELECT,
+    CONF_AIRFLOW_CONTROL_SELECT,
+    CONF_AIR_PURIFIER_SWITCH,
+    CONF_NIGHT_MODE_SWITCH,
+    CONF_CIRCULATOR_SWITCH,
+    CONF_FUNCTIONS_SET_BUTTON,
+    CONF_FUNCTIONS_SET_CODE,
+    CONF_FUNCTIONS_SET_VALUE,
+    CONF_HARDWARE_SETTINGS,
+    CONF_REMOTE_TEMP_SOURCE,
+    CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR,
+]
+
+
+def _validate_monitor_only(config):
+    """Fail loud at compile time if a read-only build is asked to expose a
+    writable/control entity (NFR3). Better than silently dropping the entity."""
+    if not config.get(CONF_MONITOR_ONLY):
+        return config
+    present = [k for k in WRITABLE_KEYS_IN_MONITOR_MODE if k in config]
+    if present:
+        raise cv.Invalid(
+            f"'{CONF_MONITOR_ONLY}: true' is a read-only build and cannot expose "
+            f"writable/control entities. Remove these option(s): {', '.join(present)}."
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     climate.climate_schema(CN105Climate)
     .extend(
         {
@@ -477,7 +511,8 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _validate_monitor_only,
 )
 
 

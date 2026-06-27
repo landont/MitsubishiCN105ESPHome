@@ -86,18 +86,22 @@ Make SET emission *unreachable*, with PR1 as the backstop if anything slips.
 
 ---
 
-### PR3 — Read-only HA entity surface  *(NFR3, FR3, FR4)*
+### PR3 — Read-only HA entity surface  *(NFR3, FR3, FR4)* — DONE (entity surface)
 
-Python-only; no writable platform may register.
+Chose the **hard schema error** over silently skipping `to_code()` blocks — a read-only
+build that's handed a writable entity should fail loud, not quietly drop it.
 
-- In `to_code()`, skip these `if CONF_… in config:` blocks when `monitor_only`: vane selects
-  (`:568–590`), `airflow_control_select`, the three `*_switch`, `functions_set_button`,
-  `functions_set_code/value`, `hardware_settings`, `remote_temperature_*`. Prefer a hard
-  schema error if a writable key is set alongside `monitor_only:true` (fail loud at compile).
-- Keep `sensor`/`binary_sensor`/`text_sensor`. Climate entity: omit or read-only no-op
-  (its `control()` already neutered by PR2).
-- Enforce distinct `pead_monitor_*` naming guidance in the example (PR6). FR4.
-- **Exit:** a `monitor_only` config compiles; ESPHome build matrix variant added.
+- `climate.py`: `WRITABLE_KEYS_IN_MONITOR_MODE` list + `_validate_monitor_only()`, wired via
+  `CONFIG_SCHEMA = cv.All(…, _validate_monitor_only)`. Rejects vane selects,
+  `airflow_control_select`, the three `*_switch`, `functions_set_button`,
+  `functions_set_code/value`, `hardware_settings`, and `remote_temperature_*` when
+  `monitor_only:true`. (`functions_get_button` is allowed — GET-only, `0x42`.)
+- **Verified with ESPHome 2026.5.0** (`esphome config`): valid monitor build accepted;
+  `monitor_only:true` + `air_purifier_switch` rejected with a clear message;
+  `monitor_only:false` + writable entity still accepted (no regression).
+- Keep `sensor`/`binary_sensor`/`text_sensor`. **Deferred:** the climate entity's own
+  `control()` no-op is **PR2**; the `pead_monitor_*`-named example + CI matrix variant is
+  **PR6** (FR4).
 
 ---
 
