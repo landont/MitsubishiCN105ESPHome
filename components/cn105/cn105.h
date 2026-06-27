@@ -298,6 +298,18 @@ namespace esphome {
         // Diagnostic: number of outbound packets dropped by the monitor_only guard.
         uint32_t get_blocked_write_count() const { return this->blocked_write_count_; }
 
+        // Runtime bus participation (NFR6/NFR7). PASSIVE = RX-only (boot default);
+        // ACTIVE = may poll. Armed at runtime (e.g. via a YAML template button);
+        // never persisted — every boot starts PASSIVE for monitor builds.
+        void arm_active_polling();      // → ACTIVE + (re)arm dead-man
+        void disarm_active_polling();   // → PASSIVE, cancel dead-man
+        cn105_protocol::BusMode bus_mode() const { return this->bus_mode_; }
+        const char* bus_mode_str() const {
+            return this->bus_mode_ == cn105_protocol::BusMode::ACTIVE ? "ACTIVE" : "PASSIVE";
+        }
+        // Dead-man window (ms): ACTIVE auto-reverts to PASSIVE unless re-armed. 0 disables.
+        void set_active_polling_deadman(uint32_t ms) { this->active_polling_deadman_ms_ = ms; }
+
         // Configure the climate object with traits that we support.
 
 
@@ -561,6 +573,12 @@ namespace esphome {
         // monitor_only mode (read-only build) + guard diagnostic counter (NFR1/NFR2)
         bool monitor_only_ = false;
         uint32_t blocked_write_count_ = 0;
+
+        // Runtime bus mode (NFR6/NFR7). Default PASSIVE = safest at rest; setup()
+        // promotes non-monitor builds to ACTIVE so normal control is unaffected.
+        cn105_protocol::BusMode bus_mode_ = cn105_protocol::BusMode::PASSIVE;
+        uint32_t active_polling_deadman_ms_ = 1800000;  // 30 min; 0 disables auto-revert
+        static constexpr const char* SCHEDULER_ACTIVE_POLLING_DEADMAN = "active_polling_deadman";
 
         esphome::ESPPreferenceObject setpoint_pref_;
         bool setpoint_pref_ready_ = false;

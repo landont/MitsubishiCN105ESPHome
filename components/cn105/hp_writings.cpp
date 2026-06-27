@@ -9,6 +9,11 @@ uint8_t CN105Climate::checkSum(uint8_t bytes[], int len) {
 
 
 void CN105Climate::sendFirstConnectionPacket() {
+    if (this->bus_mode_ == cn105_protocol::BusMode::PASSIVE) {
+        // RX-only: UART is configured for listening, but we never send CONNECT.
+        ESP_LOGD(LOG_CONN_TAG, "PASSIVE bus mode: skipping CONNECT handshake (RX-only)");
+        return;
+    }
     if (this->isUARTReady_()) {
         this->lastReconnectTimeMs = CUSTOM_MILLIS;          // marker to prevent to many reconnections
         this->setHeatpumpConnected(false);
@@ -90,14 +95,16 @@ void CN105Climate::prepareSetPacket(uint8_t* packet, int length) {
 
 void CN105Climate::writePacket(uint8_t* packet, int length, bool checkIsActive) {
 
-    // monitor_only fail-safe (NFR2): single, caller-agnostic choke point. Drop any
-    // outbound packet that is not CONNECT (0x5a) or INFO (0x42) — never transmit a
-    // write. Holds even if a future change reintroduces a write path upstream.
-    if (!cn105_protocol::monitor_allows_packet(this->monitor_only_, packet, length)) {
+    // Outbound fail-safe (NFR2/NFR6): single, caller-agnostic choke point.
+    //  - PASSIVE bus mode → drop everything (pure RX).
+    //  - ACTIVE + monitor_only → only CONNECT (0x5a) / INFO (0x42); never a write.
+    // Holds even if a future change reintroduces a write path upstream.
+    if (!cn105_protocol::outbound_packet_allowed(this->monitor_only_, this->bus_mode_, packet, length)) {
         this->blocked_write_count_++;
         const uint8_t type = (length > 1) ? packet[1] : 0x00;
-        ESP_LOGE(TAG, "monitor_only: BLOCKED outbound packet type 0x%02X (blocked total=%u)",
-            type, this->blocked_write_count_);
+        ESP_LOGE(TAG, "BLOCKED outbound packet type 0x%02X (mode=%s, blocked total=%u)",
+            type, this->bus_mode_ == cn105_protocol::BusMode::PASSIVE ? "PASSIVE" : "ACTIVE",
+            this->blocked_write_count_);
         return;
     }
 
@@ -462,6 +469,9 @@ void CN105Climate::buildAndSendInfoPacket(uint8_t code) {
 
 
 void CN105Climate::buildAndSendRequestsInfoPackets() {
+    if (this->bus_mode_ == cn105_protocol::BusMode::PASSIVE) {
+        return;  // RX-only: no INFO polling (defense in depth; we also never connect)
+    }
     if (this->isHeatpumpConnected()) {
         ESP_LOGV(LOG_UPD_INT_TAG, "triggering infopacket because of update interval tick");
         ESP_LOGV("CONTROL_WANTED_SETTINGS", "hasChanged is %s", wantedSettings.hasChanged ? "true" : "false");

@@ -131,21 +131,28 @@ than fabricate safety-critical codes.
 
 ---
 
-### PR5 — Runtime passive/active toggle + dead-man  *(NFR6, NFR7)*
+### PR5 — Runtime passive/active toggle + dead-man  *(NFR6, NFR7)* — DONE
 
-Lets Stage C validate Q2 over OTA without a re-flash. Depends on PR1.
+Lets Stage C validate Q2 over OTA without a re-flash.
 
-- **`cn105.h`**: `enum class BusMode { PASSIVE, ACTIVE }; BusMode bus_mode_{BusMode::PASSIVE};`
-  (passive on boot, always). Extend PR1 guard: in `PASSIVE`, drop **all** outbound
-  (including `0x5a`/`0x42`) — pure RX.
-- Gate active polling: `buildAndSendRequestsInfoPackets()` / `sendFirstConnectionPacket()`
-  early-return when `bus_mode_ == PASSIVE`.
-- **HA control surface** (read-only-safe): a `button`/`switch` `arm_active_polling` that sets
-  `ACTIVE`; a dead-man `set_interval` that reverts to `PASSIVE` after a re-arm window lapses
-  or after N bus anomalies (NFR7). Optional `text_sensor` exposing current `BusMode` +
-  `DriverState`.
-- **Tests**: PASSIVE drops everything; ACTIVE permits only `{0x5a,0x42}`; dead-man reverts.
-- **Exit:** mode toggles at runtime; power cycle → PASSIVE.
+- `monitor_guard.h`: `enum class BusMode {PASSIVE, ACTIVE}` + `outbound_packet_allowed()`
+  combining bus mode with the monitor_only allow-list. PASSIVE drops **all** outbound;
+  ACTIVE defers to `monitor_allows_packet()`. `writePacket()` now uses this.
+- `cn105.h`/`cn105.cpp`: `bus_mode_` (default PASSIVE), `arm_active_polling()` /
+  `disarm_active_polling()`, `bus_mode_str()`. Arm sets ACTIVE and (re)arms a `set_timeout`
+  **dead-man** (`active_polling_deadman`, default 30 min, 0=off) that reverts to PASSIVE
+  unless re-armed (NFR7). `setup()` boots PASSIVE for monitor builds, ACTIVE otherwise (so
+  normal control is unchanged). Never persisted → power cycle always lands PASSIVE.
+- Gated `sendFirstConnectionPacket()` and `buildAndSendRequestsInfoPackets()` to early-return
+  in PASSIVE (no CONNECT/poll churn; UART still set up for RX).
+- `climate.py`: `active_polling_deadman` time-period option (default `30min`).
+- **HA control surface (YAML-level, not new platform code):** expose `arm_active_polling()`
+  via a template `button`/`switch` in the example (PR6); avoids adding a writable platform to
+  the component. (Arming is not an HVAC write — it only enables `0x42` polling.)
+- **Tests** (4 new, 215 total): PASSIVE drops every type even in non-monitor builds; ACTIVE
+  monitor permits only `{0x5a,0x42}`; ACTIVE non-monitor permits all; null/short safety.
+- **Verified:** monitor firmware compiles to a full ESP32 image. **Deferred to Stage C:**
+  N-bus-anomaly auto-disarm (only the time-based dead-man is implemented now).
 
 ---
 

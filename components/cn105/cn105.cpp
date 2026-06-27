@@ -334,6 +334,36 @@ void CN105Climate::set_debounce_delay(uint32_t delay) {
     log_info_uint32(LOG_ACTION_EVT_TAG, "set_debounce_delay is set to ", delay);
 }
 
+// --- Runtime bus mode (NFR6/NFR7) -----------------------------------------
+// PASSIVE (boot default for monitor builds) transmits nothing; ACTIVE is armed
+// at runtime and auto-reverts to PASSIVE after the dead-man window unless
+// re-armed. Never persisted: a power cycle always lands PASSIVE.
+
+void CN105Climate::arm_active_polling() {
+    if (this->bus_mode_ != cn105_protocol::BusMode::ACTIVE) {
+        this->bus_mode_ = cn105_protocol::BusMode::ACTIVE;
+        ESP_LOGW(LOG_CONN_TAG, "Bus mode ARMED → ACTIVE (will poll CN105)");
+    } else {
+        ESP_LOGD(LOG_CONN_TAG, "Bus mode re-armed (already ACTIVE)");
+    }
+    // (Re)arm the dead-man so a lapse in re-arming reverts us to PASSIVE.
+    this->cancel_timeout(SCHEDULER_ACTIVE_POLLING_DEADMAN);
+    if (this->active_polling_deadman_ms_ > 0) {
+        this->set_timeout(SCHEDULER_ACTIVE_POLLING_DEADMAN, this->active_polling_deadman_ms_, [this]() {
+            ESP_LOGW(LOG_CONN_TAG, "Active-polling dead-man elapsed → reverting to PASSIVE");
+            this->disarm_active_polling();
+            });
+    }
+}
+
+void CN105Climate::disarm_active_polling() {
+    this->cancel_timeout(SCHEDULER_ACTIVE_POLLING_DEADMAN);
+    if (this->bus_mode_ != cn105_protocol::BusMode::PASSIVE) {
+        this->bus_mode_ = cn105_protocol::BusMode::PASSIVE;
+        ESP_LOGW(LOG_CONN_TAG, "Bus mode → PASSIVE (RX-only, transmitting nothing)");
+    }
+}
+
 float CN105Climate::get_compressor_frequency() {
     return currentStatus.compressorFrequency;
 }

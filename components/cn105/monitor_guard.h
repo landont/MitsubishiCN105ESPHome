@@ -14,6 +14,15 @@
 
 namespace cn105_protocol {
 
+/// Runtime bus participation mode (Requirements NFR6). Independent of the
+/// compile-time monitor_only flag: PASSIVE is RX-only (transmits nothing at
+/// all), ACTIVE may transmit per the monitor_only allow-list. A monitor build
+/// boots PASSIVE on every power cycle and is *armed* to ACTIVE at runtime.
+enum class BusMode : uint8_t {
+    PASSIVE = 0,  // pure listen: drop every outbound packet
+    ACTIVE = 1,   // may transmit (subject to monitor_only allow-list)
+};
+
 /// CN105 packet type bytes (offset 1 in every frame).
 static constexpr uint8_t PACKET_TYPE_CONNECT = 0x5a;  // handshake
 static constexpr uint8_t PACKET_TYPE_SET     = 0x41;  // write — forbidden in monitor mode
@@ -39,6 +48,18 @@ inline bool monitor_allows_packet(bool monitor_only, const uint8_t* packet, int 
     }
     const uint8_t type = packet[1];
     return (type == PACKET_TYPE_CONNECT || type == PACKET_TYPE_INFO);
+}
+
+/// Full outbound decision combining bus mode (NFR6) with the monitor_only
+/// allow-list. PASSIVE transmits nothing whatsoever; ACTIVE defers to
+/// monitor_allows_packet(). This is the single source of truth used by
+/// writePacket().
+inline bool outbound_packet_allowed(bool monitor_only, BusMode mode,
+                                    const uint8_t* packet, int length) {
+    if (mode == BusMode::PASSIVE) {
+        return false;  // RX-only: never transmit, not even CONNECT/INFO
+    }
+    return monitor_allows_packet(monitor_only, packet, length);
 }
 
 }  // namespace cn105_protocol

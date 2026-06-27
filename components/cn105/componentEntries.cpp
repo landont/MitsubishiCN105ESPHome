@@ -29,6 +29,14 @@ void CN105Climate::setup() {
     this->nbCycles_ = 0;
     this->nbHeatpumpConnections_ = 0;
 
+    // Runtime bus mode (NFR6): a monitor build boots PASSIVE (RX-only) and is
+    // armed to ACTIVE at runtime; a normal control build is ACTIVE from boot so
+    // its behavior is unchanged.
+    this->bus_mode_ = this->monitor_only_ ? cn105_protocol::BusMode::PASSIVE
+                                          : cn105_protocol::BusMode::ACTIVE;
+    ESP_LOGI(TAG, "Boot bus mode: %s (monitor_only=%s)", this->bus_mode_str(),
+        this->monitor_only_ ? "true" : "false");
+
     // Register info requests here to ensure all dependencies (like hardware_settings) are ready
     this->registerInfoRequests();
 

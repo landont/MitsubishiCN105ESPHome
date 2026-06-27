@@ -72,3 +72,38 @@ TEST(MonitorGuard, BlocksTooShortFrame) {
     EXPECT_FALSE(monitor_allows_packet(true, one_byte, 1));
     EXPECT_FALSE(monitor_allows_packet(true, one_byte, 0));
 }
+
+// ════════════════════════════════════════════════════════════════
+// outbound_packet_allowed() — combined bus-mode + monitor_only (NFR6)
+// ════════════════════════════════════════════════════════════════
+
+TEST(BusMode, PassiveDropsEverything) {
+    // PASSIVE = pure RX: nothing leaves, regardless of type or monitor_only.
+    for (uint8_t type : {PACKET_TYPE_CONNECT, PACKET_TYPE_INFO, PACKET_TYPE_SET, uint8_t(0x08)}) {
+        auto f = frame(type);
+        EXPECT_FALSE(outbound_packet_allowed(true, BusMode::PASSIVE, f.data(), (int)f.size()));
+        EXPECT_FALSE(outbound_packet_allowed(false, BusMode::PASSIVE, f.data(), (int)f.size()))
+            << "PASSIVE must drop even in a non-monitor build (type 0x" << std::hex << int(type) << ")";
+    }
+}
+
+TEST(BusMode, ActiveMonitorAllowsOnlyConnectAndInfo) {
+    auto connect = frame(PACKET_TYPE_CONNECT);
+    auto info = frame(PACKET_TYPE_INFO);
+    auto set = frame(PACKET_TYPE_SET);
+    EXPECT_TRUE(outbound_packet_allowed(true, BusMode::ACTIVE, connect.data(), (int)connect.size()));
+    EXPECT_TRUE(outbound_packet_allowed(true, BusMode::ACTIVE, info.data(), (int)info.size()));
+    EXPECT_FALSE(outbound_packet_allowed(true, BusMode::ACTIVE, set.data(), (int)set.size()));
+}
+
+TEST(BusMode, ActiveNonMonitorAllowsAll) {
+    auto set = frame(PACKET_TYPE_SET);
+    EXPECT_TRUE(outbound_packet_allowed(false, BusMode::ACTIVE, set.data(), (int)set.size()));
+}
+
+TEST(BusMode, PassiveBlocksNullAndShort) {
+    uint8_t one[1] = {0xFC};
+    EXPECT_FALSE(outbound_packet_allowed(true, BusMode::PASSIVE, nullptr, 8));
+    EXPECT_FALSE(outbound_packet_allowed(true, BusMode::ACTIVE, nullptr, 8));
+    EXPECT_FALSE(outbound_packet_allowed(true, BusMode::ACTIVE, one, 1));
+}
