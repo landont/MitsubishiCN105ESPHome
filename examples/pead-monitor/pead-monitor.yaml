@@ -22,10 +22,20 @@ substitutions:
   name: "pead-monitor"
   friendly_name: "PEAD Monitor"
   status_led_pin: GPIO48        # onboard addressable RGB LED on ESP32-S3-DevKitC-1 (confirmed by meter)
+  hp_tx_pin: GPIO12             # CN105 UART TX (ESP → heat pump)
+  hp_rx_pin: GPIO13             # CN105 UART RX (heat pump → ESP)
+  i2c_sda: GPIO4                # BME280 I2C data
+  i2c_scl: GPIO5                # BME280 I2C clock
+  bme280_address: "0x76"        # BME280 default; some boards use 0x77 (check i2c scan log)
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  # Separate HA sub-device for the attic environment sensor, so its entities
+  # appear as a distinct "22182_attic" set rather than under "PEAD Monitor".
+  devices:
+    - id: attic_env
+      name: "22182_attic"
 
 esp32:
   # ESP32-S3-DevKitC-1 N8R2 — 8 MB flash, 2 MB quad SPI PSRAM
@@ -40,15 +50,18 @@ esp32:
 # Re-add a `psram:` block only if a future feature actually requires it.
 
 logger:
-  level: DEBUG
-  logs:
-    Decoder: INFO
-    CN105: INFO
-    FSM: INFO
+  # INFO keeps the useful heartbeat (cycle start/end, connection events, errors)
+  # without the per-packet WRITE/READ/CYCLE spam. Bump to DEBUG only when actively
+  # diagnosing the bus.
+  level: INFO
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  # Keep the radio awake: WiFi modem-sleep adds ~100-200ms latency (seen as
+  # slow web UI and OTA chunk timeouts even at 0% packet loss). For an always-on
+  # mains-powered monitor there's no reason to power-save.
+  power_save_mode: none
   # AP fallback / captive portal so a dropped network self-recovers (NFR8).
   ap:
     ssid: "${friendly_name} ESP"
@@ -81,8 +94,14 @@ external_components:
 uart:
   id: HP_UART
   baud_rate: 2400          # 8E1 is configured by the cn105 component
-  tx_pin: GPIO17
-  rx_pin: GPIO16
+  tx_pin: ${hp_tx_pin}
+  rx_pin: ${hp_rx_pin}
+
+# I2C bus for the attic BME280 (scan logs the detected address on boot)
+i2c:
+  sda: ${i2c_sda}
+  scl: ${i2c_scl}
+  scan: true
 
 climate:
   - platform: cn105
@@ -151,6 +170,20 @@ sensor:
   - platform: wifi_signal
     name: WiFi signal
     update_interval: 120s
+
+  # Attic environment (BME280) — reported under the separate "22182_attic" device
+  - platform: bme280_i2c
+    address: ${bme280_address}
+    update_interval: 60s
+    temperature:
+      name: "Temperature"
+      device_id: attic_env
+    humidity:
+      name: "Humidity"
+      device_id: attic_env
+    pressure:
+      name: "Pressure"
+      device_id: attic_env
 
 # ── Onboard RGB status LED ───────────────────────────────────────────────────
 # At-a-glance state while physically at the unit (no laptop needed). Color legend,
