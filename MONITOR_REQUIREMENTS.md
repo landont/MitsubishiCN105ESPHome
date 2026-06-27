@@ -239,6 +239,16 @@ the earlier 2016 R410A `PEAD-A24AA7` manual (HWE16080) used in the first pass.
 > **not** translate to the Mitsubishi mnemonics above. The raw byte is still captured, but
 > for usable alerting add a raw-`0x04`→mnemonic map, prioritising the A2L codes
 > **`FL`/`FH`/`PL`**. Tracked as **FR5** below.
+>
+> **⚠ No public byte→code mapping exists (verified June 2026).** SwiCago/HeatPump and its
+> "Mitsubishi protocol" wiki document only that `0x04` is an error-info packet and that
+> `0x80` = normal operation; the per-code byte values (P/E/U series) are **undocumented**,
+> and the 2024 R454B A2L codes (`FL`/`FH`/`PL`) have **no published CN105 encoding at all**.
+> ⇒ The byte→mnemonic table **cannot be sourced from documentation** and must be built from
+> a **live capture** on the target unit (dev plan Stage C). FR5's *mechanism* (decoder +
+> A2L binary_sensor + tests) is implemented now with an **empty, source-gated table**
+> (`error_code_map.h`) that falls back to raw hex; no speculative codes ship, because a
+> wrong mnemonic on a flammable-refrigerant leak alert is worse than none.
 
 **Uncertain — must be probed live (do not assume):**
 - **Compressor frequency** (`0x06`), **input power / kWh** (`0x09`), **outside-air temp**

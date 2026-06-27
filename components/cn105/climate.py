@@ -97,6 +97,7 @@ CONF_STAGE_SENSOR = "stage_sensor"
 CONF_SUB_MODE_SENSOR = "sub_mode_sensor"
 CONF_AUTO_SUB_MODE_SENSOR = "auto_sub_mode_sensor"
 CONF_ERROR_CODE_SENSOR = "error_code_sensor"
+CONF_REFRIGERANT_LEAK = "refrigerant_leak"
 CONF_REMOTE_TEMP_SOURCE = "remote_temperature_source"
 CONF_REMOTE_TEMP_SOURCE_SENSOR_ID = "sensor_id"
 CONF_REMOTE_TEMP_SOURCE_INFO = "info"
@@ -304,6 +305,16 @@ ERROR_CODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(ErrorCodeSensor).exten
     {cv.GenerateID(CONF_ID): cv.declare_id(ErrorCodeSensor)}
 )
 
+# A2L refrigerant-leak alert (FR5): high-severity binary_sensor driven by the
+# 0x04 decoder. Inactive until FL/FH/PL byte codes are confirmed by capture.
+REFRIGERANT_LEAK_SCHEMA = binary_sensor.binary_sensor_schema(
+    binary_sensor.BinarySensor,
+    device_class="safety",
+    icon="mdi:gas-cylinder",
+).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(binary_sensor.BinarySensor)}
+)
+
 REMOTE_TEMP_SOURCE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_REMOTE_TEMP_SOURCE_SENSOR_ID): cv.use_id(sensor.Sensor),
@@ -407,6 +418,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SUB_MODE_SENSOR): SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_AUTO_SUB_MODE_SENSOR): AUTO_SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_ERROR_CODE_SENSOR): ERROR_CODE_SENSOR_SCHEMA,
+            cv.Optional(CONF_REFRIGERANT_LEAK): REFRIGERANT_LEAK_SCHEMA,
             cv.Optional(CONF_REMOTE_TEMP_SOURCE): REMOTE_TEMP_SOURCE_SCHEMA,
             cv.Optional(CONF_REMOTE_TEMP_TIMEOUT, default="never"): cv.All(
                 cv.update_interval
@@ -738,6 +750,10 @@ def to_code(config):
             config[CONF_ERROR_CODE_SENSOR]
         )
         cg.add(var.set_error_code_sensor(tsensor_var))
+
+    if CONF_REFRIGERANT_LEAK in config:
+        leak_var = yield binary_sensor.new_binary_sensor(config[CONF_REFRIGERANT_LEAK])
+        cg.add(var.set_refrigerant_leak_sensor(leak_var))
 
     if CONF_REMOTE_TEMP_SOURCE in config:
         rts_config = config[CONF_REMOTE_TEMP_SOURCE]

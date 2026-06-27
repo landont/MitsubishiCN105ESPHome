@@ -101,18 +101,27 @@ Python-only; no writable platform may register.
 
 ---
 
-### PR4 — `0x04` decoder + A2L refrigerant-leak alert  *(FR5)* — the only net-new logic
+### PR4 — `0x04` decoder + A2L refrigerant-leak alert  *(FR5)* — DONE (mechanism); table source-gated
 
-- New `error_code_map.h` (header-only, ESPHome-free so it unit-tests like `frame_parser.h`):
-  `const char* decode_error_mnemonic(uint8_t raw)` covering the P/E/U/F tables in Req §6 Q4,
-  plus `bool is_a2l_leak(uint8_t raw)` for `FL`/`FH`/`PL`.
-- Wire into `error_code_sensor.h` / `hp_readings.cpp:447`: keep raw byte, add mnemonic text,
-  and publish a **distinct high-severity `binary_sensor`** for the A2L leak (new config key
-  `refrigerant_leak`).
-- **Tests** (`tests/unit/test_error_decode.cpp`): known codes→mnemonics; `FL/FH/PL`→leak
-  asserted; unknown→graceful raw passthrough. *(A2L can't be tested on hardware — tests are
-  the proof.)*
-- **Exit:** decoder unit-tested; leak binary_sensor in the example.
+**Key finding (verified June 2026):** there is **no public byte→error-code mapping** for
+CN105 `0x04` — not in SwiCago, its wiki, or anywhere. The P/E/U byte values are
+undocumented and the R454B A2L codes (`FL`/`FH`/`PL`) are brand-new with no published
+encoding. So the table **cannot be sourced from docs**; it must be built from a live capture
+(Stage C). We therefore shipped the *mechanism* with an **empty, source-gated table** rather
+than fabricate safety-critical codes.
+
+- `error_code_map.h` (header-only, ESPHome-free): `decode_error_mnemonic(code, sub)` and
+  `is_a2l_leak(code, sub)` over `ERROR_CODE_TABLE` (**empty**); `find_error_entry()` is the
+  pure lookup core so tests exercise the mechanism with a fixture.
+- Wired into `hp_readings.cpp` `getErrorInfoFromResponsePacket()`: keeps raw bytes, prepends
+  the mnemonic **when known** (else raw-hex fallback, unchanged behavior), and drives a new
+  **`device_class: safety` binary_sensor** (`refrigerant_leak`, plumbed in `climate.py`).
+  `is_a2l_leak()` returns false for every code until populated → **wired but inactive**.
+- **Tests** (`tests/unit/test_error_decode.cpp`, 7 cases): fixture hit/miss, A2L flag,
+  null/empty safety, production-table-empty guard, raw fallback, leak-inactive.
+- **Remaining (Stage C):** capture real `0x04` frames, fill `ERROR_CODE_TABLE` from confirmed
+  bytes (prioritising `FL`/`FH`/`PL`), and update the `ProductionTableEmptyUntilCaptured`
+  test expectation. Until then FR5 is *mechanically* complete but *functionally* pending data.
 
 ---
 

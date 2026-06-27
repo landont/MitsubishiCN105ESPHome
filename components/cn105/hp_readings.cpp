@@ -446,18 +446,42 @@ void CN105Climate::terminateCycle() {
 }
 void CN105Climate::getErrorInfoFromResponsePacket() {
     ESP_LOGD("Decoder", "0x04 error info");
+
+    uint8_t error_raw = this->data[4];
+    uint8_t error_sub = this->data[5];
+    // Bit 7 (0x80) is a protocol status flag ("error reporting available"),
+    // not an actual error code. Use lower 7 bits for real error detection.
+    uint8_t error_code = error_raw & 0x7F;
+    const bool no_error = (error_code == 0x00 && error_sub == 0x00);
+
+    // Mnemonic translation (FR5). Returns nullptr until ERROR_CODE_TABLE is
+    // populated from a verified live capture — caller falls back to raw hex.
+    const char* mnemonic = no_error ? nullptr
+        : cn105_protocol::decode_error_mnemonic(error_code, error_sub);
+
     if (this->error_code_sensor_ != nullptr) {
-        uint8_t error_raw = this->data[4];
-        uint8_t error_sub = this->data[5];
-        // Bit 7 (0x80) is a protocol status flag ("error reporting available"),
-        // not an actual error code. Use lower 7 bits for real error detection.
-        uint8_t error_code = error_raw & 0x7F;
-        if (error_code == 0x00 && error_sub == 0x00) {
+        if (no_error) {
             this->error_code_sensor_->publish_state("No Error");
+        } else if (mnemonic != nullptr) {
+            // e.g. "FL (0x.. sub 0x..)" — keep raw bytes for diagnostics.
+            char buf[40];
+            snprintf(buf, sizeof(buf), "%s (0x%02X sub 0x%02X)", mnemonic, error_code, error_sub);
+            this->error_code_sensor_->publish_state(buf);
         } else {
             char buf[32];
             snprintf(buf, sizeof(buf), "Error 0x%02X sub 0x%02X", error_code, error_sub);
             this->error_code_sensor_->publish_state(buf);
+        }
+    }
+
+    // A2L refrigerant-leak alert (FR5). is_a2l_leak() returns false for every
+    // code until FL/FH/PL bytes are confirmed by capture — wired but inactive.
+    if (this->refrigerant_leak_sensor_ != nullptr) {
+        const bool leak = !no_error && cn105_protocol::is_a2l_leak(error_code, error_sub);
+        this->refrigerant_leak_sensor_->publish_state(leak);
+        if (leak) {
+            ESP_LOGE("Decoder", "REFRIGERANT LEAK detected (A2L code %s, raw 0x%02X sub 0x%02X)",
+                mnemonic ? mnemonic : "?", error_code, error_sub);
         }
     }
 }

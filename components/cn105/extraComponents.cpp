@@ -240,6 +240,10 @@ void CN105Climate::set_error_code_sensor(esphome::text_sensor::TextSensor* error
     this->error_code_sensor_ = error_code_sensor;
 }
 
+void CN105Climate::set_refrigerant_leak_sensor(esphome::binary_sensor::BinarySensor* sensor) {
+    this->refrigerant_leak_sensor_ = sensor;
+}
+
 void CN105Climate::set_remote_temp_source(esphome::sensor::Sensor* source) {
     this->remote_temp_source_ = source;
     // Subscribe to source sensor state changes and auto-feed remote temperature

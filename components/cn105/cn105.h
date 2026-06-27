@@ -3,6 +3,7 @@
 #include "cn105_protocol.h"
 #include "frame_parser.h"
 #include "monitor_guard.h"
+#include "error_code_map.h"
 #include "esphome/components/uart/uart.h"
 #include "heatpumpFunctions.h"
 #include "van_orientation_select.h"
@@ -107,6 +108,7 @@ namespace esphome {
         void set_sub_mode_sensor(esphome::text_sensor::TextSensor* Sub_mode_sensor);
         void set_auto_sub_mode_sensor(esphome::text_sensor::TextSensor* Auto_sub_mode_sensor);
         void set_error_code_sensor(esphome::text_sensor::TextSensor* error_code_sensor);
+        void set_refrigerant_leak_sensor(esphome::binary_sensor::BinarySensor* sensor);
         void set_remote_temp_source(esphome::sensor::Sensor* source);
         void set_remote_temp_source_info_sensor(esphome::text_sensor::TextSensor* info_sensor);
         void set_hp_uptime_connection_sensor(cn105::HpUpTimeConnectionSensor* hp_up_connection_sensor);
@@ -129,6 +131,7 @@ namespace esphome {
         text_sensor::TextSensor* Sub_mode_sensor_ = nullptr;
         text_sensor::TextSensor* Auto_sub_mode_sensor_ = nullptr;
         text_sensor::TextSensor* error_code_sensor_{ nullptr };
+        binary_sensor::BinarySensor* refrigerant_leak_sensor_{ nullptr };  // A2L leak alert (FR5)
         sensor::Sensor* remote_temp_source_{ nullptr };
         text_sensor::TextSensor* remote_temp_source_info_sensor_{ nullptr };
         HVACOptionSwitch* air_purifier_switch_ = nullptr;
