@@ -21,6 +21,7 @@
 substitutions:
   name: "pead-monitor"
   friendly_name: "PEAD Monitor"
+  status_led_pin: GPIO48        # onboard addressable RGB LED on ESP32-S3-DevKitC-1 (confirmed by meter)
 
 esphome:
   name: ${name}
@@ -33,10 +34,10 @@ esp32:
   framework:
     type: esp-idf
 
-# N8R2 carries 2 MB quad SPI PSRAM
-psram:
-  mode: quad
-  speed: 80MHz
+# NOTE: the N8R2 has 2 MB quad PSRAM, but it is intentionally NOT enabled here.
+# This monitor doesn't need it, and enabling PSRAM was correlated with the onboard
+# esp32_rmt_led_strip failing to drive the WS2812 (RMT timing) and with flaky WiFi.
+# Re-add a `psram:` block only if a future feature actually requires it.
 
 logger:
   level: DEBUG
@@ -112,10 +113,12 @@ climate:
     auto_sub_mode_sensor:
       name: Auto sub mode
     error_code_sensor:
+      id: pead_error_code
       name: Error code
     # A2L refrigerant-leak alert (FR5). Wired but inactive until FL/FH/PL byte
     # codes are confirmed by a live capture (dev plan Stage C).
     refrigerant_leak:
+      id: pead_leak
       name: Refrigerant leak
     hp_uptime_connection_sensor:
       name: Link uptime
@@ -145,3 +148,52 @@ sensor:
   - platform: wifi_signal
     name: WiFi signal
     update_interval: 120s
+
+# ── Onboard RGB status LED ───────────────────────────────────────────────────
+# At-a-glance state while physically at the unit (no laptop needed). Color legend,
+# highest priority first:
+#   RED blink   → refrigerant-leak alert (A2L) — act now
+#   RED solid   → an error/abnormal-state code is present
+#   BLUE blink  → no network yet (fix WiFi before leaving — OTA depends on it)
+#   GREEN solid → ACTIVE polling and CN105 handshake connected (talking to unit)
+#   YELLOW solid→ ACTIVE armed but not yet connected (handshaking)
+#   CYAN solid  → online & PASSIVE (RX-only, healthy resting state)
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: "Status LED"
+    pin: ${status_led_pin}
+    num_leds: 1
+    chipset: WS2812
+    rgb_order: GRB
+    default_transition_length: 0s
+    restore_mode: ALWAYS_OFF
+    entity_category: diagnostic
+
+interval:
+  - interval: 500ms
+    then:
+      - lambda: |-
+          float r = 0, g = 0, b = 0;
+          const bool blink = (millis() / 500) % 2 == 0;
+          const bool online = network::is_connected();
+          const bool leak = id(pead_leak).state;
+          const bool has_error =
+              id(pead_error_code).has_state() &&
+              id(pead_error_code).state != "No Error" &&
+              !id(pead_error_code).state.empty();
+          const bool active = std::string(id(pead_monitor).bus_mode_str()) == "ACTIVE";
+          const bool hp = id(pead_monitor).isHeatpumpConnected();
+
+          if (leak)            { r = blink ? 1 : 0; }              // RED blink
+          else if (has_error)  { r = 1; }                          // RED solid
+          else if (!online)    { b = blink ? 1 : 0; }              // BLUE blink
+          else if (active && hp) { g = 1; }                        // GREEN
+          else if (active)     { r = 1; g = 0.6f; }                // YELLOW
+          else                 { g = 1; b = 1; }                   // CYAN (passive, online)
+
+          auto call = id(status_led).turn_on();
+          call.set_rgb(r, g, b);
+          call.set_brightness(0.4f);
+          call.set_transition_length(0);
+          call.perform();
