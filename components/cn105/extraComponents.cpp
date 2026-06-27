@@ -236,6 +236,10 @@ void CN105Climate::set_auto_sub_mode_sensor(esphome::text_sensor::TextSensor* Au
     this->Auto_sub_mode_sensor_ = Auto_sub_mode_sensor;
 }
 
+void CN105Climate::set_fan_speed_sensor(esphome::text_sensor::TextSensor* fan_speed_sensor) {
+    this->fan_speed_sensor_ = fan_speed_sensor;
+}
+
 void CN105Climate::set_error_code_sensor(esphome::text_sensor::TextSensor* error_code_sensor) {
     this->error_code_sensor_ = error_code_sensor;
 }

@@ -328,7 +328,7 @@ a read-only climate entity, **never** as setpoints the user can change (see §10
 | Power state (on/off) | `0x02` | reported only |
 | Operating mode (heat/cool/dry/fan/auto) | `0x02` | reported only |
 | Target setpoint (Airzone's commanded value) | `0x02` | reported only — visibility into what Airzone set |
-| Fan speed | `0x02` | reported only |
+| Fan speed (`fan_speed_sensor`) | `0x02` | reported only — setting (`AUTO`/`QUIET`/`1`–`4`) as a standalone text entity |
 | Vane / wide-vane / airflow position | `0x02` | reported only |
 | HVAC action (heating/cooling/idle) | `0x06` | derived operating state |
 

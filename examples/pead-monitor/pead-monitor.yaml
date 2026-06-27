@@ -112,6 +112,9 @@ climate:
       name: Sub mode
     auto_sub_mode_sensor:
       name: Auto sub mode
+    fan_speed_sensor:
+      name: Fan speed
+      icon: "mdi:fan"
     error_code_sensor:
       id: pead_error_code
       name: Error code

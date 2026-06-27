@@ -765,6 +765,9 @@ void CN105Climate::checkFanSettings(heatpumpSettings& settings, bool updateCurre
 
     if (this->hasChanged(currentSettings.fan, settings.fan, "fan")) { // fan setting change ?
         ESP_LOGI(TAG, "fan setting changed");
+        if (this->fan_speed_sensor_ != nullptr) {
+            this->fan_speed_sensor_->publish_state(settings.fan);  // raw setting: AUTO/QUIET/1..4
+        }
         if (updateCurrentSettings) {
             currentSettings.fan = settings.fan;
         }

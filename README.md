@@ -252,6 +252,10 @@ climate:
       name: Auto Sub Mode
       entity_category: diagnostic
       disabled_by_default: true
+    fan_speed_sensor:
+      name: Fan Speed
+      entity_category: diagnostic
+      disabled_by_default: true
     input_power_sensor:
       name: Input Power
       disabled_by_default: true
@@ -689,6 +693,10 @@ climate:
       name: Auto Sub Mode
       entity_category: diagnostic
       disabled_by_default: true
+    fan_speed_sensor:
+      name: Fan Speed
+      entity_category: diagnostic
+      disabled_by_default: true
     input_power_sensor:
       name: Input Power
       disabled_by_default: true
@@ -898,9 +906,13 @@ sub_mode_sensor:
   name: Sub Mode Sensor
 auto_sub_mode_sensor:
   name: Auto Sub Mode Sensor
+fan_speed_sensor:
+  name: Fan Speed Sensor
 ```
 
 - `stage_sensor` is the actual fan speed of the indoor unit. This is called stage in some documentation. Reported speeds include `IDLE`, `LOW`, `GENTLE`, `MEDIUM`, `MODERATE`, `HIGH` and `DIFFUSE`, named using Mitsubishi documentation conventions.
+
+- `fan_speed_sensor` is the fan speed **setting** as a standalone text entity — the configured/requested speed, reported verbatim as `AUTO`, `QUIET`, or `1`–`4`. This mirrors the climate entity's `fan_mode` but as its own sensor, which is handy for dashboards, history, and read-only (`monitor_only`) builds. Note the distinction from `stage_sensor`: `fan_speed_sensor` is what was *asked for*, while `stage_sensor` is the actual speed the unit is *running*.
 
 - `auto_sub_mode_sensor` indicates what actual mode the unit is in when in AUTO. Modes are `AUTO_OFF`, meaning AUTO is disabled, `AUTO_COOL`, meaning AUTO and cooling, `AUTO_HEAT`, meaning AUTO and heating and `AUTO_LEADER`, meaning this unit is the leader in a multi-head unit and selects the heat/cool mode that the others follow.
 

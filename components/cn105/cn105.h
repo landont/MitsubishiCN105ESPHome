@@ -21,6 +21,7 @@
 #include "functions_number.h"
 #include "functions_button.h"
 #include "sub_mode_sensor.h"
+#include "fan_speed_sensor.h"
 #include "error_code_sensor.h"
 #include "remote_temp_source_info.h"
 #include "hvac_option_switch.h"
@@ -107,6 +108,7 @@ namespace esphome {
 
         void set_sub_mode_sensor(esphome::text_sensor::TextSensor* Sub_mode_sensor);
         void set_auto_sub_mode_sensor(esphome::text_sensor::TextSensor* Auto_sub_mode_sensor);
+        void set_fan_speed_sensor(esphome::text_sensor::TextSensor* fan_speed_sensor);
         void set_error_code_sensor(esphome::text_sensor::TextSensor* error_code_sensor);
         void set_refrigerant_leak_sensor(esphome::binary_sensor::BinarySensor* sensor);
         void set_remote_temp_source(esphome::sensor::Sensor* source);
@@ -130,6 +132,7 @@ namespace esphome {
         FunctionsNumber* Functions_set_value_ = nullptr;
         text_sensor::TextSensor* Sub_mode_sensor_ = nullptr;
         text_sensor::TextSensor* Auto_sub_mode_sensor_ = nullptr;
+        text_sensor::TextSensor* fan_speed_sensor_ = nullptr;
         text_sensor::TextSensor* error_code_sensor_{ nullptr };
         binary_sensor::BinarySensor* refrigerant_leak_sensor_{ nullptr };  // A2L leak alert (FR5)
         sensor::Sensor* remote_temp_source_{ nullptr };

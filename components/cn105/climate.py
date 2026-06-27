@@ -95,6 +95,7 @@ CONF_FUNCTIONS_SET_CODE = "functions_set_code"
 CONF_FUNCTIONS_SET_VALUE = "functions_set_value"
 CONF_STAGE_SENSOR = "stage_sensor"
 CONF_SUB_MODE_SENSOR = "sub_mode_sensor"
+CONF_FAN_SPEED_SENSOR = "fan_speed_sensor"
 CONF_AUTO_SUB_MODE_SENSOR = "auto_sub_mode_sensor"
 CONF_ERROR_CODE_SENSOR = "error_code_sensor"
 CONF_REFRIGERANT_LEAK = "refrigerant_leak"
@@ -170,6 +171,9 @@ FunctionsSensor = cg.global_ns.class_(
 FunctionsButton = cg.global_ns.class_("FunctionsButton", button.Button, cg.Component)
 FunctionsNumber = cg.global_ns.class_("FunctionsNumber", number.Number, cg.Component)
 SubModSensor = cg.global_ns.class_("SubModSensor", text_sensor.TextSensor, cg.Component)
+FanSpeedSensor = cg.global_ns.class_(
+    "FanSpeedSensor", text_sensor.TextSensor, cg.Component
+)
 AutoSubModSensor = cg.global_ns.class_(
     "AutoSubModSensor", text_sensor.TextSensor, cg.Component
 )
@@ -297,6 +301,9 @@ FUNCTIONS_NUMBER_SCHEMA = number.number_schema(FunctionsNumber).extend(
 )
 SUB_MODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(SubModSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(SubModSensor)}
+)
+FAN_SPEED_SENSOR_SCHEMA = text_sensor.text_sensor_schema(FanSpeedSensor).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(FanSpeedSensor)}
 )
 AUTO_SUB_MODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(AutoSubModSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(AutoSubModSensor)}
@@ -452,6 +459,7 @@ CONFIG_SCHEMA = cv.All(
             ): STAGE_SENSOR_CONFIG_SCHEMA,  # ModifiÃÂÃÂ© pour le nouveau schÃÂÃÂ©ma
             cv.Optional(CONF_SUB_MODE_SENSOR): SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_AUTO_SUB_MODE_SENSOR): AUTO_SUB_MODE_SENSOR_SCHEMA,
+            cv.Optional(CONF_FAN_SPEED_SENSOR): FAN_SPEED_SENSOR_SCHEMA,
             cv.Optional(CONF_ERROR_CODE_SENSOR): ERROR_CODE_SENSOR_SCHEMA,
             cv.Optional(CONF_REFRIGERANT_LEAK): REFRIGERANT_LEAK_SCHEMA,
             cv.Optional(CONF_REMOTE_TEMP_SOURCE): REMOTE_TEMP_SOURCE_SCHEMA,
@@ -784,6 +792,10 @@ def to_code(config):
     if CONF_SUB_MODE_SENSOR in config:
         tsensor_var = yield text_sensor.new_text_sensor(config[CONF_SUB_MODE_SENSOR])
         cg.add(var.set_sub_mode_sensor(tsensor_var))
+
+    if CONF_FAN_SPEED_SENSOR in config:
+        tsensor_var = yield text_sensor.new_text_sensor(config[CONF_FAN_SPEED_SENSOR])
+        cg.add(var.set_fan_speed_sensor(tsensor_var))
 
     if CONF_AUTO_SUB_MODE_SENSOR in config:
         tsensor_var = yield text_sensor.new_text_sensor(
